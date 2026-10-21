@@ -1,12 +1,13 @@
 import {LitElement, html, css} from 'lit';
-import {customElement, property} from 'lit/decorators.js';
-
-const placeholder = [
-    ""
-]
+import {customElement, property, state} from 'lit/decorators.js';
+import {Task} from '@lit/task'
+import { resolve } from 'path';
+import { rejects } from 'assert';
 
 @customElement("chat-frame")
 export class chatFrame extends LitElement{
+    @state() private message= ""
+    @property() private isResponse=false
     static styles = css `
         :host {
             flex-grow:1;
@@ -76,7 +77,6 @@ export class chatFrame extends LitElement{
             }
             recognition.start()
         }
-        
     }
     private handleButtonSubmit(){
         if(this.text.length === 0){
@@ -86,6 +86,22 @@ export class chatFrame extends LitElement{
             this.text=''
         }
     }
+    private _logtask =  new Task(this,{
+        task: async function * name([url],{signal}) {
+            const eventSource = new EventSource(url as string);
+
+            signal.addEventListener("abort", () => eventSource.close())
+
+            while(!signal.aborted){
+                const data = new Promise<String> ((resolve,rejects) => {
+                    eventSource.onmessage = (e:any) => resolve(e);
+                    eventSource.onerror = (err) => rejects(err) 
+                })
+                yield data
+            }
+        },
+        args: () => ["/api/event-stream"] as const
+    })
     render(){
         return html`<div class="chat-frame">
             <div class="chat-content">
