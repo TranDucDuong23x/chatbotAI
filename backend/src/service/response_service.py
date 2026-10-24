@@ -17,13 +17,12 @@ LLM=OllamaLLM(model="llama3.2")
 
 qa_chain = RetrievalQA.from_chain_type(llm=LLM,retriever=vector_store.as_retriever(search_kwargs={"k":4}))
 
-query="Ryzen 5 7600 và i5-14400F hiện tại chênh lệch như thế nào?"
-response = qa_chain.invoke(query)
-print(response["result"])
-
+def ask_question(text_origin:str) -> None:
+    global response
+    query = text_origin
+    response = qa_chain.invoke(query)
+    print(response["result"])
 async def get_ai_stream():
-    message="Xin chào! Tôi là AI Assistant. Tôi có thể giúp gì cho bạn hôm nay?"
     for word in response["result"]:
         yield f"data: {word} \n\n"
         await asyncio.sleep(0.3)
-
