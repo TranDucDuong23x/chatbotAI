@@ -1,11 +1,15 @@
 import {LitElement, html, css} from 'lit';
 import {customElement, property, state} from 'lit/decorators.js';
-import {Task} from '@lit/task'
+import {Task, TaskStatus} from '@lit/task'
 
 @customElement("chat-frame")
 export class chatFrame extends LitElement{
     @property({type:String}) private  message=""
-    @property({type:Boolean}) private isResponse=false
+    @property({type:Boolean}) private isPressed=false
+    @state() private isResponse = false
+    @property({type:Date}) private dateData=Date.now()
+    @property({type:Number}) statusCode = 0
+    private messages: String[]=[]
     static styles = css `
         :host {
             flex-grow:1;
@@ -49,10 +53,10 @@ export class chatFrame extends LitElement{
             cursor:pointer;
             background:transperent;
         }
-        .response {
-            position:absolute;
-            left:30%;
-            top:0;
+        .chat-frame {
+            display:flex;
+            flex-direction:column;
+            justify-content: space-between;
         }
         
     `
@@ -60,6 +64,7 @@ export class chatFrame extends LitElement{
     private handleInputChange(event: Event){
         const input = event.target as HTMLInputElement;
         this.text = input.value;
+        
     }
     private recordSetting(){
         const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -81,9 +86,12 @@ export class chatFrame extends LitElement{
     }
     private async handleButtonSubmit(){
         if(this.text.length === 0){
+            this.isPressed = false
             this.recordSetting()
         }
         else{
+            this.isPressed = true
+            this.dateData=Date.now()
             try {
                 const request = await fetch("http://127.0.0.1:5000/api/ask",{
                     method:"POST",
@@ -93,19 +101,22 @@ export class chatFrame extends LitElement{
                     body:JSON.stringify({
                         text_origin: this.text
                     })
+                
                 })
+                this.statusCode =  request.status
+                
             } catch (error) {
                 console.error("Error: " + error)
             }
         }
     }
+    
     private _logtask =  new Task(this,{
         task: async ([url],{signal}) => {
-            const eventSource = new EventSource(url)
-
+            const eventSource = new EventSource(url) 
             const queue: String[] = []
             let resolveNext: (()=>void) | null = null 
-
+            
             const handleMessage = (e: MessageEvent) => {
                 queue.push(e.data)
                 if(resolveNext){
@@ -115,14 +126,14 @@ export class chatFrame extends LitElement{
             }
 
             const handleError = (e:Event) => {
-                eventSource.close()
+                eventSource?.close()
             }
 
-            eventSource.addEventListener("message", handleMessage)
-            eventSource.addEventListener("error", handleError)
+            eventSource?.addEventListener("message", handleMessage)
+            eventSource?.addEventListener("error", handleError)
 
             signal.addEventListener("abort", () => {
-                eventSource.close()
+                eventSource?.close()
                 if(resolveNext){
                     resolveNext()
                 }
@@ -135,37 +146,42 @@ export class chatFrame extends LitElement{
                         })
                     }
                     while(queue.length > 0 && !signal.aborted){
-                        const chunk = queue.shift()
-                        this.message +=chunk
-                       
+                        const chunk = queue.shift()?.replace(" ", "")
+                        this.message += chunk
                     }
                 }
             } catch (error) {
-                
+                console.error("error: " + error)
             } finally{
-                eventSource.removeEventListener("message", handleMessage)
-                eventSource.removeEventListener("error", handleError)
+                eventSource?.removeEventListener("message", handleMessage)
+                eventSource?.removeEventListener("error", handleError)
                 signal.removeEventListener("abort", () => {
-                    eventSource.close()
+                    eventSource?.close()
                     if(resolveNext){
                         resolveNext()
+                        resolveNext = null
                     }
                 })
             }
         },
-        args: () => ["http://127.0.0.1:5000/api/event-stream"] as const
+        args: () =>  [this.statusCode === 200? `http://127.0.0.1:5000/api/event-stream?${this.dateData}`:""] as const
     })
+    renderLogTask(){
+        if(this.message.length > 0){
+            this.isResponse = true
+        }
+        if(!this.isResponse){
+            return  html`<p>Đang khởi tạo câu trả lời cho câu hỏi này</p>`
+        }
+        else if(this.isResponse){
+            return html`<ul class="response-content">
+                        <li>${this.message}</li>
+                    </ul>`
+        }
+    }
     render(){
         return html`<div class="chat-frame">
-            <div class="response">
-                ${this._logtask.render({
-                    pending: () => html`<p>Đang tạo câu trả lời cho câu hỏi của bạn</p>`,
-                    error: () => html`<p>Lỗi</p>`,
-                    complete: (value) => html`<ul class="response-content">
-                        <li>${value}</li>
-                    </ul>`
-                })}
-            </div>
+            ${this.isPressed ? html`<div>${this.renderLogTask()}</div>`:null}
             <div class="chat-content">
                 <p>This is the chat frame</p>
                 <div class="chat-input-container">

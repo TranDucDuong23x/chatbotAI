@@ -5,7 +5,7 @@ def response_controller():
         get_ai_stream(),
         media_type="text/event-stream",
         headers={
-            "Cache-control":"no-cache",
+            "Cache-control":"no-cache, no-store",
             "Connection":"keep-alive"
         }
     )
