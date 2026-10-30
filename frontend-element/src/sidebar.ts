@@ -1,9 +1,31 @@
-import { LitElement, html, css } from 'lit';
-import { customElement, property } from 'lit/decorators.js';
-
+import { LitElement, html, css, TemplateResult } from 'lit';
+import { customElement, property, query, state } from 'lit/decorators.js';
+import { Router } from '@lit-labs/router';
+import './signin'
+import './signup'
+import './chatFrame'
 @customElement('app-sidebar')
 export class AppSidebar extends LitElement {
+    private _router=new Router(this,[
+        {path:"/",render:() => html`
+        <chat-frame></chat-frame>`},
+        {path:"/sign-in",render:() => html`<sign-in></sign-in>`},
+        {path:"/sign-up",render:() => html`<sign-up></sign-up>`}
+    ])
     static styles = css`
+        :host {
+            display: flex;
+            width: 100%;
+            height: 100vh;
+        }
+
+        main {
+            flex: 1;
+            min-width: 0;
+            height: 100vh;
+            overflow: hidden;
+        }
+
         *{
             margin: 0;
             padding: 0;
@@ -35,8 +57,31 @@ export class AppSidebar extends LitElement {
         .sidebar-nav .toggle-collapse li:nth-child(2){
             width: 100%;
         }
-    
+        .selection .sign {
+            display:flex;
+            flex-direction:column;
+            margin-top:10px;
+        }
+        form{
+            display:flex;
+            flex-direction:column;
+            gap:20px;
+            margin-top:20px;
+        }
+        form .input{
+            display:flex;
+            flex-direction:column
+        }
+        
     `
+
+    private handleSignedUp = () => {
+        window.open("/sign-up","_blank","noopener,noreferrer")
+        
+    }
+    private handleSignedIn = () => {
+        window.open("/sign-in","_blank","noopener,noreferrer")
+    }
     @property({ type: Boolean }) collapsed = false;
     private handleCollapse() {
         const sidebarNav = this.shadowRoot?.querySelector(".sidebar-nav");
@@ -53,17 +98,12 @@ export class AppSidebar extends LitElement {
             <nav>
                 <ul class="sidebar-nav">
                     <li>
-                        ChatbotAI
+                        Chatbot
                     </li>
-                    <li @click="${this.handleCollapse}" class="collapse-button">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <rect width="18" height="18" x="3" y="3" rx="2"/>
-                        <path d="M9 3v18"/>
-                        <path d="m16 15-3-3 3-3"/>
-                        </svg>
-                    </li>
+                
                 </ul>
             </nav>
+            <div class="selection">
             <ul>
                 <li>
                     <img src="https://img.icons8.com/ios/50/000000/chat.png" width="20px" height="20px"/>
@@ -78,6 +118,23 @@ export class AppSidebar extends LitElement {
                     Document
                 </li>
             </ul>
-        </div>`;
+            <div class="sign">
+                <button class="sign-button"  id="signUp" @click="${() => this.handleSignedUp()}">
+                    Sign up
+                </button>
+            </div>
+             <div class="sign">
+                <button class="sign-button" id="signIn" @click = "${() => this.handleSignedIn()}">
+                    Sign in
+                </button>
+            </div>
+            </div>
+        </div>
+
+        <main>
+            ${this._router.outlet()}
+        </main>
+        `;
+
     }
 }
