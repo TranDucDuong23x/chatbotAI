@@ -1,23 +1,59 @@
-import pandas as pd
 import asyncio
-from langchain_community.document_loaders import DataFrameLoader
+import json
+from pathlib import Path
+
 from langchain_community.vectorstores import chroma
 from langchain_ollama import OllamaEmbeddings, OllamaLLM
 from langchain_classic.chains.retrieval_qa.base import RetrievalQA
+from langchain_core.documents import Document
 import redis
-import os
 from langchain_core.prompts import ChatPromptTemplate
-r=redis.Redis(host="localhost",port=6379,decode_responses=True)
-embeddings= OllamaEmbeddings(model="nomic-embed-text")
-if not os.path.exists("./chatbotDB.db"):
-    df=pd.read_excel("./data.xlsx")
-    df["full_text"] = df["Câu hỏi"].astype(str) + "\nĐáp: " + df["Câu trả lời"].astype(str)
-    loader = DataFrameLoader(df,page_content_column="full_text")
-    documents=loader.load()
-    vector_store = chroma.Chroma.from_documents(documents,embeddings,persist_directory="./chatbotDB.db")
+
+r = redis.Redis(host="localhost", port=6379, decode_responses=True)
+embeddings = OllamaEmbeddings(model="nomic-embed-text")
+src_dir = Path(__file__).resolve().parents[1]
+data_path = src_dir / "datas" / "data_final.json"
+db_path = src_dir / "chatbotDB.db"
+
+with data_path.open(encoding="utf-8") as data_file:
+    data = json.load(data_file)
+
+documents = [
+    Document(
+        page_content=item["noi_dung"],
+        metadata={key: value for key, value in item.items() if key != "noi_dung"},
+    )
+    for item in data
+]
+document_ids = [item["chunk_id"] for item in data]
+
+if not db_path.exists():
+    vector_store = chroma.Chroma.from_documents(
+        documents,
+        embeddings,
+        ids=document_ids,
+        persist_directory=str(db_path),
+    )
 else:
-    vector_store=chroma.Chroma(persist_directory="./chatbotDB.db",embedding_function=embeddings)
-LLM=OllamaLLM(model="llama3.2",temperature=0)
+    vector_store = chroma.Chroma(
+        persist_directory=str(db_path),
+        embedding_function=embeddings,
+    )
+    existing_ids = set(vector_store.get(ids=document_ids)["ids"])
+    new_documents = [
+        document
+        for document, document_id in zip(documents, document_ids)
+        if document_id not in existing_ids
+    ]
+    new_ids = [
+        document_id
+        for document_id in document_ids
+        if document_id not in existing_ids
+    ]
+    if new_documents:
+        vector_store.add_documents(new_documents, ids=new_ids)
+
+LLM = OllamaLLM(model="llama3.2", temperature=0)
 doc_count = vector_store._collection.count()
 print(f"--> Tổng số đoạn văn bản trong Database: {doc_count}")
 
